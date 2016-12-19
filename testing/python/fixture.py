@@ -1902,6 +1902,37 @@ class TestFixtureMarker:
         reprec = testdir.inline_run()
         reprec.assertoutcome(skipped=2, passed=1)
 
+    def test_session_scoped_doesnt_leak_out_of_class(self, testdir):
+        testdir.makepyfile("""
+            import pytest
+            @pytest.fixture(scope='session')
+            def foo():
+                return 'foo'
+            @pytest.fixture(scope='session')
+            def bar(foo):
+                return foo + 'bar'
+            @pytest.fixture(scope='session')
+            def baz(bar):
+                return bar + 'baz'
+            class TestSpecific:
+                @pytest.fixture(scope='session')
+                def foo(self):
+                    return 'FOO'
+                # no bar!
+                @pytest.fixture(scope='session')
+                def baz(self, bar):
+                    return bar + 'BAZ'
+                def test_b(self, foo, bar, baz):
+                    pass
+            def test_c(foo, bar, baz):
+                assert foo == 'foo'
+                assert bar == 'foobar'
+                assert baz == 'foobarbaz'
+
+        """)
+        reprec = testdir.inline_run()
+        reprec.assertoutcome(passed=2)
+
     def test_scope_module_uses_session(self, testdir):
         testdir.makepyfile("""
             import pytest
